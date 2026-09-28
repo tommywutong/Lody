@@ -704,6 +704,13 @@ export class AgentClient implements acp.Client {
       }
     }
 
+    if (
+      this.options.agentConfig?.cliType === 'builtin' &&
+      this.options.agentConfig.agentType === 'omp'
+    ) {
+      return [];
+    }
+
     const cliEntrypoint = process.argv[1];
     if (!cliEntrypoint) {
       return [];
@@ -759,6 +766,9 @@ export class AgentClient implements acp.Client {
     try {
       const external = (await externalLoad)({
         http: this.agentMcpCapabilities?.http === true,
+        stdio:
+          this.options.agentConfig?.cliType !== 'builtin' ||
+          this.options.agentConfig.agentType !== 'omp',
       });
       for (const problem of external.problems) {
         this.options.onAgentWarning?.({

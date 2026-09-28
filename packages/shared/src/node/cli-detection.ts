@@ -228,6 +228,22 @@ export const checkCodex = (options?: CliDetectionOptions): string | false => {
   return hasCodexCredentials(options) ? AUTH_FILE_DETECTED : false;
 };
 
+export const checkOmp = async (): Promise<string | false> => {
+  try {
+    const additionalPaths = process.platform === 'win32' ? getWindowsGlobalBinPaths() : [];
+    const PATH = buildAugmentedPath(additionalPaths, process.env.PATH);
+    const env = { ...process.env, PATH };
+    const { stdout, status, error } =
+      process.platform === 'win32'
+        ? await runWindowsCommandResolved('omp', ['--version'], env)
+        : await runCommand('omp', ['--version'], env);
+    if (status !== 0 || error) return false;
+    return parseRawVersion(String(stdout ?? ''));
+  } catch {
+    return false;
+  }
+};
+
 export const checkOpencode = async (): Promise<string | false> => {
   try {
     const additionalPaths = process.platform === 'win32' ? getWindowsGlobalBinPaths() : [];

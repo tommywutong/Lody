@@ -60,7 +60,7 @@ describe('workspace MCP resolution', () => {
       resolveSessionMcpServers({
         catalog: { [entry.id]: entry },
         selectedIds: [entry.id],
-        agentCapabilities: undefined,
+        agentCapabilities: { stdio: true },
         env: { BIN: 'node', ROOT: '/repo', TOKEN: 'secret', HOME: '/home/dev' },
       })
     ).toEqual({
@@ -79,6 +79,20 @@ describe('workspace MCP resolution', () => {
     });
   });
 
+  it('does not resolve stdio servers when the agent rejects them', () => {
+    const entry = stdioServer('stdio');
+    const result = resolveSessionMcpServers({
+      catalog: { [entry.id]: entry },
+      selectedIds: [entry.id],
+      agentCapabilities: { stdio: false },
+      env: {},
+    });
+    expect(result.servers).toEqual([]);
+    expect(result.problems).toEqual([
+      { kind: 'unsupported_transport', mcpServerId: entry.id, name: entry.name, transport: 'stdio' },
+    ]);
+  });
+
   it('reports missing passthrough variables and skips the whole server', () => {
     const entry = stdioServer('stdio', {
       connection: { transport: 'stdio', command: 'node', envPassthrough: ['TOKEN'] },
@@ -86,7 +100,7 @@ describe('workspace MCP resolution', () => {
     const result = resolveSessionMcpServers({
       catalog: { [entry.id]: entry },
       selectedIds: [entry.id],
-      agentCapabilities: undefined,
+      agentCapabilities: { stdio: true },
       env: {},
     });
 
@@ -160,7 +174,7 @@ describe('workspace MCP resolution', () => {
     const result = resolveSessionMcpServers({
       catalog: { missing, invalid, http, unresolved },
       selectedIds: ['unknown', missing.id, http.id, invalid.id, unresolved.id],
-      agentCapabilities: { http: false },
+      agentCapabilities: { http: false, stdio: true },
       env: {},
     });
 
@@ -181,7 +195,7 @@ describe('workspace MCP resolution', () => {
     const result = resolveSessionMcpServers({
       catalog: { good, bad },
       selectedIds: [bad.id, good.id, good.id],
-      agentCapabilities: undefined,
+      agentCapabilities: { stdio: true },
       env: {},
     });
 

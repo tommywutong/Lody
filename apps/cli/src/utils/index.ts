@@ -4,6 +4,7 @@ import {
   checkClaude,
   checkCodex,
   checkKimi,
+  checkOmp,
   checkOpencode,
   __test__,
 } from '@lody/shared/node/cli-detection';
@@ -20,4 +21,4 @@ export function getConfigPath(): string {
   return path.join(getLodyDataDir(), 'credentials.json');
 }
 
-export { checkClaude, checkCodex, checkKimi, checkOpencode, __test__ };
+export { checkClaude, checkCodex, checkKimi, checkOmp, checkOpencode, __test__ };

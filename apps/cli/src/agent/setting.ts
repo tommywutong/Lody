@@ -36,6 +36,7 @@ import {
   KIMI_CODE_VERSION,
   PI_EXTENSIONS_SUPPORTED,
   PI_RUNTIME_VERSION,
+  OMP_RUNTIME_VERSION,
   type ManagedRuntimeLaunch,
   type ManagedRuntimeName,
   type ManagedRuntimeProgressCallback,
@@ -128,6 +129,11 @@ export const BuiltinACPSetting: Record<CliType, ACPSetting> = {
     packageName: 'acp-extension-pi',
     version: PI_RUNTIME_VERSION,
     binName: 'acp-extension-pi',
+  },
+  omp: {
+    packageName: 'acp-extension-omp',
+    version: OMP_RUNTIME_VERSION,
+    binName: 'acp-extension-omp',
   },
   kimi: {
     packageName: '@moonshot-ai/kimi-code',
@@ -245,6 +251,9 @@ export function getAcpCapabilitySourceVersion(
       }
       if (input.agentType === 'pi') {
         return `builtin-pi:${managedRuntimeVersion ?? PI_RUNTIME_VERSION}${runtimeOverrideSuffix}`;
+      }
+      if (input.agentType === 'omp') {
+        return `builtin-omp:${managedRuntimeVersion ?? OMP_RUNTIME_VERSION}${runtimeOverrideSuffix}`;
       }
       if (input.agentType === 'grok') {
         return managedRuntimeVersion
@@ -556,6 +565,14 @@ async function resolveBuiltinACPProcessLaunch(
       capabilitySourceVersion: getAcpCapabilitySourceVersion(input, runtime.version),
     };
   }
+  if (input.agentType === 'omp') {
+    const runtime = await resolveManagedRuntimeForLaunch('omp', input);
+    return {
+      command: process.execPath,
+      args: [runtime.command, ...(input.extraArgs ?? [])],
+      capabilitySourceVersion: getAcpCapabilitySourceVersion(input, runtime.version),
+    };
+  }
   if (input.agentType === 'kimi') {
     const overridePath = trimRuntimeOverride(input.runtimeOverrides?.kimiPath);
     const runtime = overridePath
@@ -636,6 +653,9 @@ export async function resolveBuiltinAuthenticationProcessLaunch(
     throw new Error(
       'Configure Pi credentials through provider environment variables or Pi settings.'
     );
+  }
+  if (input.agentType === 'omp') {
+    return null;
   }
 
   if (input.agentType === 'kimi') {

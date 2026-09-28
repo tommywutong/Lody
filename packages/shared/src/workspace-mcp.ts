@@ -84,7 +84,7 @@ export type McpResolutionProblem =
 export type ResolveSessionMcpServersInput = {
   catalog: Readonly<Record<string, WorkspaceMcpServerMeta>>;
   selectedIds: readonly string[];
-  agentCapabilities: { http?: boolean } | undefined;
+  agentCapabilities: { http?: boolean; stdio?: boolean } | undefined;
   env: Readonly<Record<string, string | undefined>>;
 };
 
@@ -241,7 +241,10 @@ export const resolveSessionMcpServers = (
       continue;
     }
 
-    if (entry.transport === 'http' && input.agentCapabilities?.http !== true) {
+    if (
+      (entry.transport === 'http' && input.agentCapabilities?.http !== true) ||
+      (entry.transport === 'stdio' && input.agentCapabilities?.stdio === false)
+    ) {
       problems.push({
         kind: 'unsupported_transport',
         mcpServerId,

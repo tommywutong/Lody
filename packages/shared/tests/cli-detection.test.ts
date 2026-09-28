@@ -4,17 +4,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { checkClaude, checkCodex, detectCliTypes, __test__ } from '../src/node/cli-detection';
+import { checkClaude, checkCodex, checkOmp, detectCliTypes, __test__ } from '../src/node/cli-detection';
 
 const require = createRequire(import.meta.url);
 const {
   checkClaude: checkClaudeCjs,
   checkCodex: checkCodexCjs,
+  checkOmp: checkOmpCjs,
   detectCliTypes: detectCliTypesCjs,
   __test__: cjsTest,
 } = require('../src/node/cli-detection.cjs') as {
   checkClaude: (options?: { homeDir?: string }) => string | false;
   checkCodex: (options?: { homeDir?: string }) => string | false;
+  checkOmp: () => Promise<string | false>;
   detectCliTypes: (options?: { homeDir?: string }) => {
     kimi: string;
     claude: string | null;
@@ -135,6 +137,34 @@ describe('CLI auth file detection', () => {
       } else {
         process.env.CODEX_HOME = originalCodexHome;
       }
+    }
+  });
+  it('returns the installed OMP version and treats a failed probe as unavailable', async () => {
+    const homeDir = makeHomeDir();
+    const binDir = path.join(homeDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const executable = path.join(binDir, process.platform === 'win32' ? 'omp.cmd' : 'omp');
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = [binDir, originalPath].filter(Boolean).join(path.delimiter);
+      fs.writeFileSync(
+        executable,
+        process.platform === 'win32'
+          ? '@echo off\r\necho omp/test\r\n'
+          : '#!/bin/sh\nprintf "omp/test\\n"\n',
+        'utf8'
+      );
+      if (process.platform !== 'win32') fs.chmodSync(executable, 0o755);
+      await expect(checkOmp()).resolves.toBe('omp/test');
+      await expect(checkOmpCjs()).resolves.toBe('omp/test');
+
+      fs.writeFileSync(executable, process.platform === 'win32' ? '@echo off\r\nexit /b 1\r\n' : '#!/bin/sh\nexit 1\n');
+      if (process.platform !== 'win32') fs.chmodSync(executable, 0o755);
+      await expect(checkOmp()).resolves.toBe(false);
+      await expect(checkOmpCjs()).resolves.toBe(false);
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
     }
   });
 

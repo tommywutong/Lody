@@ -24,6 +24,7 @@ export const MANAGED_BUILTIN_RUNTIMES = [
   { runtimeName: 'grok-build', agentType: 'grok', displayName: 'Grok' },
   { runtimeName: 'claude-code', agentType: 'claude', displayName: 'Claude Code' },
   { runtimeName: 'codex', agentType: 'codex', displayName: 'Codex' },
+  { runtimeName: 'omp', agentType: 'omp', displayName: 'Oh My Pi' },
   { runtimeName: 'pi', agentType: 'pi', displayName: 'Pi' },
 ] as const;
 
@@ -71,6 +72,7 @@ const BUILTIN_ACP_TITLE_OWNERSHIP: Record<BuiltinAgentType, 'none' | 'untagged' 
   grok: 'untagged',
   kimi: 'none',
   deepseek: 'none',
+  omp: 'none',
   // Bub's ACP server does not push an authoritative session title, so Lody
   // keeps running its isolated title agent.
   bub: 'none',

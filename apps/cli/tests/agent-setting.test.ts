@@ -124,6 +124,31 @@ describe('resolveBuiltinACPSetting', () => {
       manager.mockRestore();
     }
   });
+
+  it('launches the managed OMP adapter without forwarding credentials or an OMP path', async () => {
+    const manager = vi.spyOn(managedRuntime, 'getManagedAgentRuntimeManager').mockReturnValue({
+      resolveRuntimeForLaunch: async () => ({
+        runtimeName: 'omp',
+        version: '0.1.0-local',
+        targetVersion: '0.1.0-local',
+        platformArch: 'node',
+        command: '/managed/omp/package/dist/index.js',
+        updateAvailable: false,
+      }),
+    } as ReturnType<typeof managedRuntime.getManagedAgentRuntimeManager>);
+    try {
+      expect(await resolveACPProcessLaunchAsync({ cliType: 'builtin', agentType: 'omp' })).toEqual({
+        command: process.execPath,
+        args: ['/managed/omp/package/dist/index.js'],
+        capabilitySourceVersion: 'builtin-omp:0.1.0-local',
+      });
+      await expect(
+        resolveBuiltinAuthenticationProcessLaunch({ cliType: 'builtin', agentType: 'omp', action: 'status' })
+      ).resolves.toBeNull();
+    } finally {
+      manager.mockRestore();
+    }
+  });
   it('requires the async launcher for managed builtin runtimes', () => {
     expect(() => resolveBuiltinACPSetting('claude')).toThrow(/resolveACPProcessLaunchAsync/);
     expect(() => resolveBuiltinACPSetting('codex')).toThrow(/resolveACPProcessLaunchAsync/);

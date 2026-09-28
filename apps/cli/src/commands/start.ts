@@ -12,8 +12,8 @@ import {
   performLoginWithAuthCredential,
 } from '@/lib/auth';
 import { LodyFleet, syncCliServerTime } from '@/lib/lody-fleet';
-import { CliType, MachineId } from '@lody/shared';
-import { checkClaude, checkCodex } from '@/utils';
+import { CliType, MachineId, SUPPORTED_CLI_TYPES } from '@lody/shared';
+import { checkClaude, checkCodex, checkOmp } from '@/utils';
 import { CliAvailability, resolveCliTypesSelection } from './start-options';
 import { CliRuntimeStateReporter } from '@/lib/cli-runtime-state';
 import { formatErrorMessage } from '@/utils/format-error';
@@ -92,9 +92,10 @@ interface StartOptions {
 const EXIT_CODE_ALREADY_RUNNING = 3;
 
 function logCliDetectionResults(logger: Logger, availability: CliAvailability): void {
-  logger.debug('Local agent auth detection results:');
+  logger.debug('Local agent availability results:');
   logger.debug(`kimi: ${availability.kimi || 'not found'}`);
   logger.debug(`grok: ${availability.grok || 'not found'}`);
+  logger.debug(`omp: ${availability.omp || 'not found'}`);
   logger.debug(`claude: ${availability.claude || 'not found'}`);
   logger.debug(`codex: ${availability.codex || 'not found'}`);
 }
@@ -234,6 +235,7 @@ export const startCommand = new Command('start')
     const cliAvailability = {
       kimi: 'managed-runtime',
       pi: 'managed-runtime',
+      omp: await checkOmp(),
       grok: 'managed-runtime',
       claude: checkClaude(),
       codex: checkCodex(),
@@ -271,7 +273,7 @@ export const startCommand = new Command('start')
 
     if (cliSelection.invalid.length > 0) {
       logger.error(
-        `Unknown CLI types: ${cliSelection.invalid.join(', ')}. Supported values: kimi, grok, claude, codex.`
+        `Unknown CLI types: ${cliSelection.invalid.join(', ')}. Supported values: ${SUPPORTED_CLI_TYPES.join(', ')}.`
       );
       process.exit(1);
     }

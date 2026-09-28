@@ -1,0 +1,13 @@
+{
+  "name": "omp",
+  "version": "0.1.0-local.04b1f297c338",
+  "kind": "node-package",
+  "minNodeVersion": "22.14.0",
+  "artifact": {
+    "fileName": "lody-omp-0.1.0-local.04b1f297c338.tar.zst",
+    "sha256": "04b1f297c338f177b71b4750491e0f917a93ab91a739ed5637ac2aeaad0902f8",
+    "size": 652987,
+    "compression": "zstd",
+    "cmd": "package/dist/index.js"
+  }
+}

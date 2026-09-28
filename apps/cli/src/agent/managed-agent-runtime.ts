@@ -32,6 +32,7 @@ import claudeRuntimeManifestJson from './claude-runtime-manifest.json';
 import codexRuntimeManifestJson from './codex-runtime-manifest.json';
 import kimiRuntimeManifestJson from './kimi-runtime-manifest.json';
 import piRuntimeManifestJson from './pi-runtime-manifest.json';
+import ompRuntimeManifestJson from './omp-runtime-manifest.json';
 
 import {
   CURRENT_MACHINE_PROTOCOL_CAPABILITIES,
@@ -146,6 +147,7 @@ type ManagedRuntimeInstallEntry = {
 
 const MANAGED_RUNTIME_NAME_VALUES = [
   'pi',
+  'omp',
   'codex',
   'claude-code',
   'kimi-code',
@@ -350,6 +352,7 @@ export const CODEX_ACP_ADAPTER_VERSION = codexPackageJson.version;
 export const CLAUDE_ACP_ADAPTER_VERSION = claudePackageJson.version;
 export const KIMI_CODE_VERSION = kimiRuntimeManifestJson.version;
 export const PI_RUNTIME_VERSION = piRuntimeManifestJson.version;
+export const OMP_RUNTIME_VERSION = ompRuntimeManifestJson.version;
 export const PI_EXTENSIONS_SUPPORTED =
   'piExtensionsProtocolVersion' in piRuntimeManifestJson &&
   piRuntimeManifestJson.piExtensionsProtocolVersion === PI_EXTENSIONS_PROTOCOL_VERSION;
@@ -443,6 +446,15 @@ const RUNTIMES: Record<ManagedRuntimeName, RuntimeDefinition> = {
     minNodeVersion: piRuntimeManifestJson.minNodeVersion,
     platforms: {
       node: { ...piRuntimeManifestJson.artifact, compression: 'zstd' },
+    },
+  },
+  omp: {
+    name: 'omp',
+    version: OMP_RUNTIME_VERSION,
+    kind: 'node-package',
+    minNodeVersion: ompRuntimeManifestJson.minNodeVersion,
+    platforms: {
+      node: { ...ompRuntimeManifestJson.artifact, compression: 'zstd' },
     },
   },
   'kimi-code': {

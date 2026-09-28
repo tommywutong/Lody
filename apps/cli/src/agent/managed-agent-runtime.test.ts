@@ -1,11 +1,17 @@
-import { existsSync } from 'node:fs';
-import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile as execFileCallback, spawn, type ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { createReadStream, existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { Readable } from 'node:stream';
+import { dirname, join, resolve as resolvePath } from 'node:path';
+import { Readable, Writable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
+import { PROTOCOL_VERSION, client, methods, ndJsonStream } from '@agentclientprotocol/sdk';
 import * as tar from 'tar';
 import { compressStream } from 'zstd-stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -36,6 +42,8 @@ import {
   type FetchImpl,
   type ManagedRuntimeProgressEvent,
 } from './managed-agent-runtime';
+
+const execFileAsync = promisify(execFileCallback);
 
 describe('host runtime capabilities', () => {
   it.each([
@@ -94,6 +102,99 @@ describe('ManagedAgentRuntimeManager', () => {
 
   afterEach(async () => {
     await rm(rootDir, { recursive: true, force: true });
+  });
+
+  it('installs and launches the OMP adapter from a throwaway artifact mirror', async () => {
+    const repoRoot = resolvePath(dirname(fileURLToPath(import.meta.url)), '../../../../');
+    const artifactDir = join(rootDir, 'omp-artifact');
+    await execFileAsync(
+      process.execPath,
+      [join(repoRoot, 'scripts/package-omp-runtime.mjs'), '--output', artifactDir],
+      { cwd: repoRoot, maxBuffer: 32 * 1024 * 1024 }
+    );
+    const manifestFile = (await readdir(artifactDir)).find((entry) =>
+      entry.endsWith('.tar.zst.json')
+    );
+    if (!manifestFile) throw new Error('OMP artifact manifest was not generated');
+    const manifest = JSON.parse(await readFile(join(artifactDir, manifestFile), 'utf8'));
+    const archive = await readFile(join(artifactDir, manifest.artifact.fileName));
+    const expectedPath = `/api/runtimes/omp/${manifest.version}/node/${manifest.artifact.fileName}`;
+    const runtimeRequests: string[] = [];
+    const server = createServer((request, response) => {
+      runtimeRequests.push(`${request.method} ${request.url}`);
+      if (request.url !== expectedPath) {
+        response.writeHead(404).end();
+        return;
+      }
+      response.writeHead(200, { 'content-length': archive.byteLength });
+      response.end(archive);
+    });
+    const listening = once(server, 'listening');
+    server.listen(0, '127.0.0.1');
+    await listening;
+
+    const manager = new ManagedAgentRuntimeManager({
+      rootDir,
+      runtimeBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+      nodeVersion: process.versions.node,
+      fetchImpl: async (url, init) => {
+        const response = await fetch(url, init);
+        return {
+          ok: response.ok,
+          status: response.status,
+          headers: response.headers,
+          body: response.body,
+        };
+      },
+    });
+    const definition = manager.getDefinition('omp');
+    const previous = {
+      version: definition.version,
+      minNodeVersion: definition.minNodeVersion,
+      archive: definition.platforms.node,
+    };
+    definition.version = manifest.version;
+    definition.minNodeVersion = manifest.minNodeVersion;
+    definition.platforms.node = { ...manifest.artifact, compression: 'zstd' };
+    let child: ChildProcess | undefined;
+    try {
+      const installed = await manager.ensureCurrentRuntime('omp');
+      child = spawn(process.execPath, [installed.command], { stdio: ['pipe', 'pipe', 'pipe'] });
+      let stderr = '';
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      const exited = once(child, 'exit').then(([code, signal]) => {
+        throw new Error(`OMP adapter exited before ACP initialize (${code ?? signal}): ${stderr}`);
+      });
+      const connection = client({ name: 'lody-omp-runtime-install-test' }).connect(
+        ndJsonStream(
+          Writable.toWeb(child.stdin!),
+          Readable.toWeb(child.stdout!) as unknown as ReadableStream<Uint8Array>
+        )
+      );
+      const initialized = await Promise.race([
+        connection.agent.request(methods.agent.initialize, {
+          protocolVersion: PROTOCOL_VERSION,
+          clientCapabilities: {},
+        }),
+        exited,
+      ]);
+      expect(initialized.agentInfo?.name).toBe('omp-rpc');
+      expect(runtimeRequests).toEqual([`GET ${expectedPath}`]);
+    } finally {
+      definition.version = previous.version;
+      definition.minNodeVersion = previous.minNodeVersion;
+      definition.platforms.node = previous.archive;
+      if (child && child.exitCode === null && child.signalCode === null) {
+        const childClosed = once(child, 'exit');
+        child.kill('SIGTERM');
+        await childClosed;
+      }
+      const serverClosed = once(server, 'close');
+      server.close();
+      await serverClosed;
+    }
   });
 
   async function installTinyCodexArchiveDefinition(fileName: string) {

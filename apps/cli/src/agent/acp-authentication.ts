@@ -105,6 +105,7 @@ const DEFAULT_TERMINATION_GRACE_MS = 3_000;
 const DEFAULT_STATUS_PROBE_TIMEOUT_MS = 15_000;
 
 const BUILTIN_AUTH_METHODS = {
+  omp: [],
   // Pi credentials are configured through the official Pi CLI on the host.
   pi: [],
   kimi: [

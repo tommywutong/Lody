@@ -3,9 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequestError } from '@agentclientprotocol/sdk';
-import type { MachineId, SessionId, WorkspaceId } from '@lody/shared';
+import type {
+  MachineId,
+  McpServerId,
+  SessionId,
+  WorkspaceFlockReadableFlock,
+  WorkspaceId,
+} from '@lody/shared';
 import type { Logger } from '@/utils/logger';
 
+import { loadSessionMcpCatalog } from './session-mcp-resolver';
 const connectionMocks = vi.hoisted(() => ({
   initialize: vi.fn(),
   newSession: vi.fn(),
@@ -649,6 +656,58 @@ describe('AgentClient session preparation gate', () => {
         }),
       ],
     });
+  });
+
+  it('omits selected stdio MCP servers for the OMP adapter', async () => {
+    const selectedId = 'server-1' as McpServerId;
+    const rows = [
+      {
+        key: ['mcpServer', selectedId],
+        value: {
+          id: selectedId,
+          name: 'filesystem',
+          transport: 'stdio',
+          connection: { transport: 'stdio', command: 'node' },
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    ];
+    const catalogFlock = {
+      scan: ({ prefix }: { prefix?: readonly unknown[] } = {}) =>
+        rows.filter(({ key }) => prefix?.every((part, index) => key[index] === part) ?? true),
+    } satisfies WorkspaceFlockReadableFlock;
+    const warnings: Array<{ message: string; source: string }> = [];
+    const client = new AgentClient({
+      logger: createLogger(),
+      sessionId: 'session-omp' as SessionId,
+      workspaceId: 'workspace-1' as WorkspaceId,
+      machineId: 'machine-1' as MachineId,
+      terminalManager: {} as never,
+      agentConfig: { cliType: 'builtin', agentType: 'omp' },
+      loadExternalMcpServers: () =>
+        loadSessionMcpCatalog({
+          repo: { openFlockDoc: async () => ({ flock: catalogFlock }) },
+          workspaceId: 'workspace-1' as WorkspaceId,
+          sessionId: 'session-omp' as SessionId,
+          selectedIds: [selectedId],
+          logger: createLogger(),
+          env: {},
+        }),
+      onAgentWarning: (warning) => warnings.push(warning),
+      onUpdateMessage: vi.fn(),
+      onRequestPermission: vi.fn(),
+    });
+
+    await client.startSession({} as never, '/workdir');
+
+    expect(connectionMocks.newSession).toHaveBeenCalledWith({ cwd: '/workdir', mcpServers: [] });
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        source: 'configWarning',
+        message: expect.stringContaining('filesystem'),
+      }),
+    ]);
   });
 
   it('aborts while waiting for a claim without creating an ACP session', async () => {
